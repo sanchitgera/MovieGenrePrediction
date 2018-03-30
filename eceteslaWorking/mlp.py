@@ -150,7 +150,7 @@ X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
 
 #rnn
 print(X.shape[1])
-model = build_rnn(len(word_dict), X.shape[1])
+model = build_rnn(len(word_dict) + 1, X.shape[1])
 model.fit(X_train, Y_train, batch_size=32, epochs=1,  verbose=5)
 
 print(model.summary())
