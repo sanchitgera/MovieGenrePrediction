@@ -181,7 +181,7 @@ def build_rnn(num_words, input_length):
 	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 	return model
 
-dataset = load_data(subset = 5000)
+dataset = load_data(subset = 500)
 stemmer = PorterStemmer()
 x = dataset["summary"]
 y = dataset.drop(["summary"], axis=1)
@@ -190,6 +190,7 @@ X = [remove_stopwords(sent) for sent in x.values]
 tokenizer = Tokenizer(filters='"#$%&()*+,-./:;<=>?@[\]^_`{|}~ ')
 tokenizer.fit_on_texts(X)
 X = tokenizer.texts_to_sequences(X)
+X = tokenizer.sequences_to_matrix(X, mode)
 X = pad_sequences(X, padding='post')
 
 X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
