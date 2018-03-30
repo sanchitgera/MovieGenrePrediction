@@ -29,8 +29,10 @@ from keras.preprocessing.sequence import pad_sequences
 from sklearn.metrics import confusion_matrix, f1_score
 import matplotlib.pyplot as plt
 import keras.backend
+from keras.layers import Dropout
 from keras.callbacks import Callback
-from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.metrics import confusion_matrix, jaccard_similarity_score, accuracy_score, \
+		f1_score, precision_score, recall_score
 
 class Metrics(Callback):
 	def __init__(self, x_test, y_test):
@@ -41,9 +43,16 @@ class Metrics(Callback):
 		self.val_f1s = []
 		self.val_recalls = []
 		self.val_precisions = []
+		self.val_accuracies = []
+		self.val_jaccards = []
 	 
 	def on_epoch_end(self, epoch, logs={}):
-		val_predict = (np.asarray(self.model.predict(self.x_test))).round()
+		val_predict = (np.asarray(self.model.predict(self.x_test)))
+
+		print(val_predict)
+
+		val_predict[val_predict >= 0.5] = 1
+		val_predict[val_predict < 0.5] = 0
 		print(self.y_test.columns)
 		print("*****")
 		print(val_predict)
@@ -53,10 +62,18 @@ class Metrics(Callback):
 		_val_f1 = f1_score(self.y_test.values, val_predict, average='weighted')
 		_val_recall = recall_score(self.y_test.values, val_predict, average='weighted')
 		_val_precision = precision_score(self.y_test.values, val_predict, average='weighted')
+		_val_accuracy = accuracy_score(self.y_test.values, val_predict)
+		_val_jaccard = jaccard_similarity_score(self.y_test.values, val_predict)
+
 		self.val_f1s.append(_val_f1)
 		self.val_recalls.append(_val_recall)
 		self.val_precisions.append(_val_precision)
-		print("— val_f1: {} — val_precision: {} — val_recall {}".format(_val_f1, _val_precision, _val_recall))
+		self.val_accuracies.append(_val_accuracy)
+		self.val_jaccards.append(_val_jaccard)
+
+		print("— val_f1: {} — val_precision: {} — val_recall {} — val_accuracy: {} — val_jaccard {}" \
+				.format(_val_f1, _val_precision, _val_recall, _val_accuracy, _val_jaccard))
+
 		return
 
 
@@ -154,13 +171,14 @@ def build_rnn(num_words, input_length):
 	np.random.seed(7)
 
 	embed_dim = 128
-	lstm_out = 200
+	lstm_out = 600
 
 	model = Sequential()
-	model.add(Embedding(num_words, embed_dim,input_length = input_length, dropout = 0.2))
-	model.add(LSTM(lstm_out, dropout_U = 0.2, dropout_W = 0.2))
-	model.add(Dense(14, activation='softmax'))
-	model.compile(loss = 'categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
+	model.add(Embedding(num_words, embed_dim, input_length=input_length))
+	model.add(Dropout(0.2))
+	model.add(LSTM(lstm_out, dropout=0.2, recurrent_dropout=0.2))
+	model.add(Dense(14, activation='sigmoid'))
+	model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
 	return model
 
 dataset = load_data(subset = 5000)
@@ -182,9 +200,9 @@ X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
 
 # report = build_neural_net(hidden_layers=(128,128), activation='relu', early_stopping=False)
 #rnn
-print(X.shape[1])
 metrics = Metrics(X_test, Y_test)
 model = build_rnn(len(word_dict) + 1, X.shape[1])
+
 h = model.fit(X_train, Y_train, batch_size=32, epochs=10, verbose=5, callbacks=[metrics])
 
 plt.plot(h.history['acc'])
