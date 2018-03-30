@@ -1,4 +1,5 @@
 import pandas as pd
+import csv
 from sklearn.pipeline import Pipeline
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.feature_extraction.text import TfidfTransformer
@@ -25,6 +26,31 @@ from sklearn.neural_network import MLPClassifier
 from gensim.models import KeyedVectors
 from keras.preprocessing.text import Tokenizer
 from keras.preprocessing.sequence import pad_sequences
+from sklearn.metrics import confusion_matrix, f1_score
+import matplotlib.pyplot as plt
+import keras.backend
+from keras.callbacks import Callback
+from sklearn.metrics import confusion_matrix, f1_score, precision_score, recall_score
+
+class Metrics(Callback):
+	def on_train_begin(self, logs={}):
+		self.val_f1s = []
+		self.val_recalls = []
+		self.val_precisions = []
+	 
+	def on_epoch_end(self, epoch, logs={}):
+		val_predict = (np.asarray(self.model.predict(self.model.validation_data[0]))).round()
+		val_targ = self.model.validation_data[1]
+		_val_f1 = f1_score(val_targ, val_predict)
+		_val_recall = recall_score(val_targ, val_predict)
+		_val_precision = precision_score(val_targ, val_predict)
+		self.val_f1s.append(_val_f1)
+		self.val_recalls.append(_val_recall)
+		self.val_precisions.append(_val_precision)
+		print("— val_f1: {} — val_precision: {} — val_recall {}".format(_val_f1, _val_precision, _val_recall))
+		return
+
+metrics = Metrics()
 
 
 stop_words = set(stopwords.words('english'))
@@ -34,6 +60,7 @@ def load_data(subset = None):
     if subset is not None:
         return data.head(subset)
     return data
+
 
 def stem_tokens(tokens, stemmer):
     stemmed = []
@@ -102,6 +129,18 @@ def remove_stopwords(sent):
 
 	return new_sent
 
+def f1_score(y_true, y_pred):
+	print('y_true:')
+	print(y_true.name)
+	print(y_true.shape)
+	print('----')
+	print('y_pred')
+	print(y_pred.name)
+	print(y_pred.shape)
+
+	return K.mean(y_pred)
+
+
 def build_neural_net(hidden_layers, activation='relu', early_stopping=False):
     clf = MLPClassifier(hidden_layer_sizes=hidden_layers, early_stopping=early_stopping, activation=activation)
     model = clf.fit(extract_vector_array(transformed_x_train.values), y_train)
@@ -126,7 +165,7 @@ def build_rnn(num_words, input_length):
 	model.add(Embedding(num_words, embed_dim,input_length = input_length, dropout = 0.2))
 	model.add(LSTM(lstm_out, dropout_U = 0.2, dropout_W = 0.2))
 	model.add(Dense(14, activation='softmax'))
-	model.compile(loss = 'categorical_crossentropy', optimizer='adam',metrics = ['accuracy'])
+	model.compile(loss = 'categorical_crossentropy', optimizer='adam', metrics=['accuracy'])
 	return model
 
 dataset = load_data(subset = 5000)
@@ -151,8 +190,16 @@ X_train, X_test, Y_train, Y_test = train_test_split(X, y, test_size=0.2)
 #rnn
 print(X.shape[1])
 model = build_rnn(len(word_dict) + 1, X.shape[1])
-model.fit(X_train, Y_train, batch_size=32, epochs=1,  verbose=5)
+h = model.fit(X_train, Y_train, batch_size=32, epochs=10, verbose=5, callbacks=[metrics])
+
+plt.plot(h.history['acc'])
 
 print(model.summary())
+
+score, acc = model.evaluate(X_test, Y_test, verbose=2, batch_size= 32)
+
+print(score)
+print(acc)
+
 
 
